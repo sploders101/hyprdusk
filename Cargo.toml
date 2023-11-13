@@ -1,0 +1,18 @@
+[package]
+name = "hyprdusk"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dbus = "0.9.7"
+gdk = "0.18.0"
+gio = "0.18.3"
+grass = { version = "0.13.1", features = ["macro"] }
+gtk = "0.18.1"
+gtk-layer-shell = "0.8.0"
+hyprland = "0.3.12"
+mpris = "2.0.1"
+stray = "0.1.3"
+tokio = { version = "1.34.0", features = ["full"] }
