@@ -35,21 +35,15 @@ fn activate(application: &gtk::Application, monitor: gdk::Monitor, services: &se
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     window.set_child(Some(&bar));
 
-    let sides_size_group = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
-
     let left = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    bar.add(&left);
-    sides_size_group.add_widget(&left);
+    bar.pack_start(&left, true, true, 0);
 
     let center = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    center.set_halign(gtk::Align::Center);
-    center.set_hexpand(true);
-    bar.add(&center);
+    bar.set_center_widget(Some(&center));
 
     let right = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    bar.pack_end(&right, true, true, 0);
     right.set_halign(gtk::Align::End);
-    bar.add(&right);
-    sides_size_group.add_widget(&right);
 
     // Add some components
     left.add(&workspaces_widget(10, services));
