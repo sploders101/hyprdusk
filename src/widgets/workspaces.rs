@@ -1,9 +1,8 @@
 use gtk::prelude::*;
 use hyprland::dispatch::{Dispatch, DispatchType, WorkspaceIdentifierWithSpecial};
-use hyprland::event_listener::EventListener;
 use hyprland::prelude::*;
 
-pub fn workspaces_widget(num_workspaces: i32) -> gtk::Box {
+pub fn workspaces_widget(num_workspaces: i32, services: &crate::services::Services) -> gtk::Box {
     let workspaces_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     let mut workspace_buttons = Vec::<(i32, gtk::Button)>::new();
 
@@ -41,9 +40,10 @@ pub fn workspaces_widget(num_workspaces: i32) -> gtk::Box {
     };
     update_current_workspace();
 
-    let mut hypr_events = EventListener::new();
-    hypr_events.add_workspace_change_handler(move |_| update_current_workspace());
-    std::thread::spawn(move || hypr_events.start_listener());
+    services.hyprland.connect_workspace_change(move || {
+        update_current_workspace();
+        glib::ControlFlow::Continue
+    });
 
     return workspaces_box;
 }

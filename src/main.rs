@@ -3,11 +3,12 @@ use std::collections::HashSet;
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk_layer_shell::{Edge, Layer, LayerShell};
-use widgets::workspaces::workspaces_widget;
+use widgets::{workspaces::workspaces_widget, windowtitle::window_title};
 
 mod widgets;
+mod services;
 
-fn activate(application: &gtk::Application, monitor: gdk::Monitor) {
+fn activate(application: &gtk::Application, monitor: gdk::Monitor, services: &services::Services) {
     // Set up the window
     let window = gtk::ApplicationWindow::new(application);
     window.style_context().add_class("hyprdusk-bar");
@@ -34,9 +35,11 @@ fn activate(application: &gtk::Application, monitor: gdk::Monitor) {
     let bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     window.set_child(Some(&bar));
 
+    let sides_size_group = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
+
     let left = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    left.set_hexpand(true);
     bar.add(&left);
+    sides_size_group.add_widget(&left);
 
     let center = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     center.set_halign(gtk::Align::Center);
@@ -45,12 +48,12 @@ fn activate(application: &gtk::Application, monitor: gdk::Monitor) {
 
     let right = gtk::Box::new(gtk::Orientation::Horizontal, 0);
     right.set_halign(gtk::Align::End);
-    right.set_hexpand(true);
     bar.add(&right);
+    sides_size_group.add_widget(&right);
 
     // Add some components
-    let workspaces = workspaces_widget(10);
-    left.add(&workspaces);
+    left.add(&workspaces_widget(10, services));
+    center.add(&window_title(services));
 
     // Get ready for activation
     application.connect_activate(move |_| {
@@ -62,7 +65,9 @@ fn main() {
     let application =
         gtk::Application::new(Some("com.shaunkeys.hyprdusk.main"), Default::default());
 
-    application.connect_startup(|app| {
+    let (services, shutdown) = services::Services::new();
+
+    application.connect_startup(move |app| {
         eprintln!("Application startup");
         let provider = gtk::CssProvider::new();
         provider
@@ -84,7 +89,7 @@ fn main() {
             if let Some(monitor) = monitor {
                 eprintln!("Opening for monitor {i}");
                 activated_monitors.insert(monitor.clone());
-                activate(app, monitor);
+                activate(app, monitor, &services);
             } else {
                 eprintln!("Monitor not found");
             }
@@ -93,7 +98,6 @@ fn main() {
 
     eprintln!("Running application");
 
-    let code = application.run();
-
-    eprintln!("Run exited with {code:?}");
+    application.run();
+    let _ = shutdown.send(());
 }
