@@ -57,7 +57,7 @@ fn activate(application: &gtk::Application, monitor: gdk::Monitor, services: &se
 
 fn main() {
     let application =
-        gtk::Application::new(Some("com.shaunkeys.hyprdusk.main"), Default::default());
+        gtk::Application::new(Some("com.shaunkeys.hyprdusk.shell"), Default::default());
 
     let (services, shutdown) = services::Services::new();
 
