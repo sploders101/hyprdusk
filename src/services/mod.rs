@@ -1,11 +1,13 @@
 use tokio::runtime::Runtime;
 
-mod hyprland;
+pub mod hyprland;
+pub mod systray;
 
 
 #[derive(Default)]
 pub struct Services {
     pub hyprland: self::hyprland::HyprlandService,
+    pub systray: self::systray::SystrayService,
 }
 impl Services {
     /// Sets up a tokio runtime and spawns services' default implementations
