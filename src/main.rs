@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use gio::prelude::*;
 use gtk::prelude::*;
 use gtk_layer_shell::{Edge, Layer, LayerShell};
-use widgets::{workspaces::workspaces_widget, windowtitle::window_title, systray::system_tray};
+use widgets::{workspaces::workspaces_widget, windowtitle::window_title, systray::system_tray, date::date};
 
 mod widgets;
 mod services;
@@ -49,6 +49,7 @@ fn activate(application: &gtk::Application, monitor: gdk::Monitor, services: &se
     left.add(&workspaces_widget(10, services));
     center.add(&window_title(services));
     right.add(&system_tray(services));
+    right.add(&date());
 
     // Get ready for activation
     application.connect_activate(move |_| {
