@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, cmp::Ordering};
 
 use system_tray::message::{tray::{IconPixmap, StatusNotifierItem}, menu::TrayMenu};
 pub use system_tray::{NotifierItemMessage, message::NotifierItemCommand};
@@ -26,8 +26,21 @@ impl Default for SystrayService {
                 let (stray_sender, stray_receiver) = tokio::sync::mpsc::channel(32);
                 let tray = system_tray::StatusNotifierWatcher::new(stray_receiver).await.unwrap();
 
-                let mut host = tray.create_notifier_host("Hyprdusk").await.unwrap();
                 tokio::task::spawn(async move {
+                    let mut host: Option<_> = None;
+                    for _ in 0..10 {
+                        if let Ok(new_host) = tray.create_notifier_host("Hyprdusk").await {
+                            host = Some(new_host);
+                            break;
+                        }
+                        if cfg!(debug_assertions) {
+                            eprintln!("Failed to create notifier host. Trying again...");
+                        }
+                    }
+                    let mut host = match host {
+                        Some(host) => host,
+                        None => return,
+                    };
                     let mut state = HashMap::<String, NotifierItem>::new();
                     while let Ok(msg) = host.recv().await {
                         match msg {
@@ -120,12 +133,21 @@ impl NotifierItem {
     }
 
     pub fn get_icon_from_pixmaps(&self, pixmaps: &[IconPixmap]) -> Option<gtk::Image> {
-        let pixmap = pixmaps
-            .iter()
-            .find(|pm| pm.height > 20 && pm.height < 32)
-            .expect("No icon of suitable size found");
+        let mut pixmap = Vec::from(pixmaps);
+        pixmap.sort_unstable_by(|pm1, pm2| {
+            match (pm1.height, pm2.height) {
+                (20..=24, 20..=24) => pm1.height.cmp(&pm2.height),
+                (20..=24, _) => Ordering::Greater,
+                (_, 20..=24) => Ordering::Less,
+                (25.., 25..) => (pm1.height - 24).cmp(&(pm2.height - 24)),
+                (25.., _) => Ordering::Less,
+                (_, 25..) => Ordering::Less,
+                (_, _) => pm1.height.cmp(&pm2.height),
+            }
+        });
+        let pixmap = pixmap.pop().expect("No icon found");
 
-        let pixbuf = gtk::gdk_pixbuf::Pixbuf::new(
+        let mut pixbuf = gtk::gdk_pixbuf::Pixbuf::new(
             gtk::gdk_pixbuf::Colorspace::Rgb,
             true,
             8,
@@ -145,7 +167,18 @@ impl NotifierItem {
             }
         }
 
-        Some(gtk::Image::from_pixbuf(Some(&pixbuf)))
+        if let Some(new_pixbuf) = pixbuf.scale_simple(24, 24, gdk::gdk_pixbuf::InterpType::Bilinear) {
+            pixbuf = new_pixbuf;
+        } else {
+            eprintln!("Picture scaling failed");
+        }
+
+        let img = gtk::Image::from_pixbuf(Some(&pixbuf));
+
+        img.set_height_request(24);
+
+        None
+        // Some(img)
     }
 
     pub fn get_icon_from_theme(&self) -> Option<gtk::Image> {
@@ -159,6 +192,16 @@ impl NotifierItem {
         let icon_name = self.item.icon_name.as_ref().unwrap();
         let icon = theme.lookup_icon(icon_name, 24, gtk::IconLookupFlags::GENERIC_FALLBACK);
 
-        icon.map(|i| gtk::Image::from_pixbuf(i.load_icon().ok().as_ref()))
+        icon.map(|i| {
+            let pixbuf = i
+                .load_icon()
+                .ok()
+                .and_then(|pixbuf| pixbuf.scale_simple(24, 24, gdk::gdk_pixbuf::InterpType::Bilinear));
+            let img = gtk::Image::from_pixbuf(pixbuf.as_ref());
+
+            img.set_height_request(32);
+
+            img
+        })
     }
 }
