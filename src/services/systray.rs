@@ -13,11 +13,11 @@ use gtk::prelude::*;
 // something that works.
 
 pub struct SystrayService {
-    listener_channel: UnboundedSender<(glib::Sender<HashMap<String, NotifierItem>>, UnboundedReceiver<NotifierItemCommand>)>,
+    listener_channel: UnboundedSender<(tokio::sync::watch::Sender<HashMap<String, NotifierItem>>, UnboundedReceiver<NotifierItemCommand>)>,
 }
 impl Default for SystrayService {
     fn default() -> Self {
-        let (channel_sender, mut channel_receiver) = mpsc::unbounded_channel::<(glib::Sender<HashMap<String, NotifierItem>>, UnboundedReceiver<NotifierItemCommand>)>();
+        let (channel_sender, mut channel_receiver) = mpsc::unbounded_channel::<(tokio::sync::watch::Sender<HashMap<String, NotifierItem>>, UnboundedReceiver<NotifierItemCommand>)>();
 
         tokio::task::spawn(async move {
 
@@ -78,7 +78,7 @@ impl Default for SystrayService {
 }
 impl SystrayService {
     pub fn create_facet(&self) -> SystrayFacet {
-        let (gtk_sender, gtk_receiver) = glib::MainContext::channel(glib::Priority::DEFAULT);
+        let (gtk_sender, gtk_receiver) = tokio::sync::watch::channel(Default::default());
         let (tokio_sender, tokio_receiver) = tokio::sync::mpsc::unbounded_channel();
         let _ = self.listener_channel.send((gtk_sender, tokio_receiver));
         return SystrayFacet {
@@ -90,7 +90,7 @@ impl SystrayService {
 
 pub struct SystrayFacet {
     sender: UnboundedSender<NotifierItemCommand>,
-    receiver: Option<glib::Receiver<HashMap<String, NotifierItem>>>,
+    receiver: Option<tokio::sync::watch::Receiver<HashMap<String, NotifierItem>>>,
 }
 impl Clone for SystrayFacet {
     fn clone(&self) -> Self {
@@ -102,10 +102,15 @@ impl Clone for SystrayFacet {
 }
 impl SystrayFacet {
     /// Attach a callback to the systray facet. This function must be called only once.
-    pub fn attach(&mut self, callback: impl FnMut(HashMap<String, NotifierItem>) -> glib::ControlFlow + 'static) {
+    pub fn attach(&mut self, mut callback: impl FnMut(&HashMap<String, NotifierItem>) -> glib::ControlFlow + 'static) {
         match self.receiver.take() {
-            Some(receiver) => {
-                receiver.attach(None, callback);
+            Some(mut receiver) => {
+                glib::spawn_future_local(async move {
+                    while let Ok(()) = receiver.changed().await {
+                        let item = receiver.borrow();
+                        callback(&item);
+                    }
+                });
             }
             None => {
                 eprintln!("Multiple calls to `SystrayFacet::attach`. This is not allowed.");
